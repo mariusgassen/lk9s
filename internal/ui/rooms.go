@@ -54,7 +54,7 @@ func roomsInputCapture(
 				n.pages.RemovePage("confirm-delete")
 				n.pages.AddPage("confirm-delete", confirmDeleteRoomPage(n, roomName, func(err error) {
 					updateStatus(status, err)
-					refresh()
+					go refresh()
 				}), true, true)
 			}
 
