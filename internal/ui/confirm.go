@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gdamore/tcell/v2"
@@ -10,8 +11,12 @@ import (
 // confirmDeleteRoomPage asks the user to type the room name back before
 // deleting it, since the action disconnects every participant and cannot
 // be undone. onDone is called on the UI thread after the delete attempt.
+// Esc cancels: before the request is sent it just closes the dialog, while
+// a delete already in flight is aborted via context cancellation.
 func confirmDeleteRoomPage(n nav, roomName string, onDone func(err error)) tview.Primitive {
 	const pageName = "confirm-delete"
+
+	ctx, cancel := context.WithCancel(n.ctx)
 
 	warning := tview.NewTextView().SetText(fmt.Sprintf(
 		"Delete room %q?\nThis disconnects all participants and cannot be undone.\n\nType the room name to confirm, then press Enter.\nEsc to cancel.",
@@ -33,10 +38,12 @@ func confirmDeleteRoomPage(n nav, roomName string, onDone func(err error)) tview
 		}
 
 		input.SetDisabled(true)
-		status.SetText("deleting...")
+		status.SetText("deleting... (Esc to cancel)")
 
 		go func() {
-			err := n.client.DeleteRoom(n.ctx, roomName)
+			defer cancel()
+
+			err := n.client.DeleteRoom(ctx, roomName)
 
 			n.app.QueueUpdateDraw(func() {
 				n.pages.RemovePage(pageName)
@@ -47,6 +54,7 @@ func confirmDeleteRoomPage(n nav, roomName string, onDone func(err error)) tview
 
 	input.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
+			cancel()
 			n.pages.RemovePage(pageName)
 
 			return nil
