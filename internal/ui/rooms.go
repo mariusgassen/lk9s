@@ -47,6 +47,15 @@ func roomsInputCapture(
 	return func(event *tcell.EventKey) *tcell.EventKey {
 		row, _ := table.GetSelection()
 
+		if event.Key() == tcell.KeyCtrlE {
+			if text := status.GetText(true); text != "" {
+				n.pages.RemovePage("status-detail")
+				n.pages.AddPage("status-detail", statusDetailPage(n, text), true, true)
+			}
+
+			return nil
+		}
+
 		if event.Key() == tcell.KeyCtrlD {
 			if row > 0 && row <= len(state.sorted) {
 				roomName := state.sorted[row-1].Name
@@ -176,7 +185,7 @@ func roomsPage(n nav) tview.Primitive {
 		}
 	}()
 
-	keys := [][2]string{{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"Ctrl+D", "delete"}, {"Shift+letter", "sort"}}
+	keys := [][2]string{{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"Ctrl+D", "delete"}, {"Ctrl+E", "error detail"}, {"Shift+letter", "sort"}}
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(version, 1, 0, false).
