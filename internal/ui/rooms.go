@@ -42,9 +42,24 @@ func roomsInputCapture(
 	table *tview.Table,
 	state *tableState[lk.Room],
 	status *tview.TextView,
+	refresh func(),
 ) func(*tcell.EventKey) *tcell.EventKey {
 	return func(event *tcell.EventKey) *tcell.EventKey {
 		row, _ := table.GetSelection()
+
+		if event.Key() == tcell.KeyCtrlD {
+			if row > 0 && row <= len(state.sorted) {
+				roomName := state.sorted[row-1].Name
+
+				n.pages.RemovePage("confirm-delete")
+				n.pages.AddPage("confirm-delete", confirmDeleteRoomPage(n, roomName, func(err error) {
+					updateStatus(status, err)
+					refresh()
+				}), true, true)
+			}
+
+			return nil
+		}
 
 		if event.Rune() == 'e' {
 			if row > 0 && row <= len(state.sorted) {
@@ -101,7 +116,23 @@ func roomsPage(n nav) tview.Primitive {
 
 	status.SetText(" loading...")
 	state.render(table)
-	table.SetInputCapture(roomsInputCapture(n, table, state, status))
+
+	fetchAndRender := func() {
+		fetched, err := n.client.ListRooms(n.ctx)
+
+		n.app.QueueUpdateDraw(func() {
+			updateStatus(status, err)
+
+			if err != nil {
+				return
+			}
+
+			state.setItems(fetched)
+			state.render(table)
+		})
+	}
+
+	table.SetInputCapture(roomsInputCapture(n, table, state, status, fetchAndRender))
 
 	table.SetSelectedFunc(func(row, _ int) {
 		if row == 0 || row > len(state.sorted) {
@@ -126,21 +157,6 @@ func roomsPage(n nav) tview.Primitive {
 		}()
 	})
 
-	fetchAndRender := func() {
-		fetched, err := n.client.ListRooms(n.ctx)
-
-		n.app.QueueUpdateDraw(func() {
-			updateStatus(status, err)
-
-			if err != nil {
-				return
-			}
-
-			state.setItems(fetched)
-			state.render(table)
-		})
-	}
-
 	go func() {
 		fetchAndRender()
 
@@ -157,7 +173,7 @@ func roomsPage(n nav) tview.Primitive {
 		}
 	}()
 
-	keys := [][2]string{{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"Shift+letter", "sort"}}
+	keys := [][2]string{{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"Ctrl+D", "delete"}, {"Shift+letter", "sort"}}
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(version, 1, 0, false).

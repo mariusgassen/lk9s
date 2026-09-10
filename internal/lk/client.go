@@ -103,6 +103,14 @@ func (c *Client) ListRooms(ctx context.Context) ([]Room, error) {
 	return rooms, nil
 }
 
+func (c *Client) DeleteRoom(ctx context.Context, room string) error {
+	if _, err := c.rooms.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: room}); err != nil {
+		return fmt.Errorf("delete room: %w", err)
+	}
+
+	return nil
+}
+
 func (c *Client) ListParticipants(ctx context.Context, room string) ([]Participant, error) {
 	res, err := c.rooms.ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: room})
 	if err != nil {
