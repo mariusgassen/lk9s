@@ -3,6 +3,8 @@ package lk
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"strings"
 
 	"github.com/livekit/protocol/livekit"
@@ -74,18 +76,30 @@ type Egress struct {
 type Client struct {
 	rooms    *lksdk.RoomServiceClient
 	egresses *lksdk.EgressClient
+	logger   *slog.Logger
 }
 
-func NewClient(url, apiKey, apiSecret string) *Client {
+// NewClient creates a LiveKit API client. logger receives debug-level
+// diagnostics (e.g. the exact room identifiers sent and returned by the
+// API) useful for tracking down server-side inconsistencies; pass nil to
+// discard them.
+func NewClient(url, apiKey, apiSecret string, logger *slog.Logger) *Client {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+
 	return &Client{
 		rooms:    lksdk.NewRoomServiceClient(url, apiKey, apiSecret),
 		egresses: lksdk.NewEgressClient(url, apiKey, apiSecret),
+		logger:   logger,
 	}
 }
 
 func (c *Client) ListRooms(ctx context.Context) ([]Room, error) {
 	res, err := c.rooms.ListRooms(ctx, &livekit.ListRoomsRequest{})
 	if err != nil {
+		c.logger.Error("list rooms", "error", err)
+
 		return nil, fmt.Errorf("list rooms: %w", err)
 	}
 
@@ -98,15 +112,23 @@ func (c *Client) ListRooms(ctx context.Context) ([]Room, error) {
 			CreationTime:    r.GetCreationTime(),
 			Metadata:        r.GetMetadata(),
 		}
+
+		c.logger.Debug("list rooms: got room", "name", rooms[i].Name, "sid", rooms[i].SID)
 	}
 
 	return rooms, nil
 }
 
 func (c *Client) DeleteRoom(ctx context.Context, room string) error {
+	c.logger.Debug("delete room: request", "name", room)
+
 	if _, err := c.rooms.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: room}); err != nil {
+		c.logger.Error("delete room", "name", room, "error", err)
+
 		return fmt.Errorf("delete room: %w", err)
 	}
+
+	c.logger.Debug("delete room: ok", "name", room)
 
 	return nil
 }
