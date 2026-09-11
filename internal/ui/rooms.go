@@ -42,7 +42,7 @@ func roomsInputCapture(
 	table *tview.Table,
 	state *tableState[lk.Room],
 	status *tview.TextView,
-	refresh func(),
+	refresh func(keepStatus error),
 ) func(*tcell.EventKey) *tcell.EventKey {
 	return func(event *tcell.EventKey) *tcell.EventKey {
 		row, _ := table.GetSelection()
@@ -63,10 +63,7 @@ func roomsInputCapture(
 				n.pages.RemovePage("confirm-delete")
 				n.pages.AddPage("confirm-delete", confirmDeleteRoomPage(n, roomName, func(err error) {
 					updateStatus(status, err)
-
-					if err == nil {
-						go refresh()
-					}
+					go refresh(err)
 				}), true, true)
 			}
 
@@ -129,18 +126,23 @@ func roomsPage(n nav) tview.Primitive {
 	status.SetText(" loading...")
 	state.render(table)
 
-	fetchAndRender := func() {
+	// keepStatus, when non-nil, leaves the status bar as the caller set it
+	// (e.g. an error from an action that just ran) instead of overwriting
+	// it with this refresh's own result; the room list is always updated.
+	fetchAndRender := func(keepStatus error) {
 		fetched, err := n.client.ListRooms(n.ctx)
 
 		n.app.QueueUpdateDraw(func() {
-			updateStatus(status, err)
+			if err == nil {
+				state.setItems(fetched)
+				state.render(table)
+			}
 
-			if err != nil {
+			if keepStatus != nil {
 				return
 			}
 
-			state.setItems(fetched)
-			state.render(table)
+			updateStatus(status, err)
 		})
 	}
 
@@ -170,7 +172,7 @@ func roomsPage(n nav) tview.Primitive {
 	})
 
 	go func() {
-		fetchAndRender()
+		fetchAndRender(nil)
 
 		ticker := time.NewTicker(refreshInterval)
 		defer ticker.Stop()
@@ -180,7 +182,7 @@ func roomsPage(n nav) tview.Primitive {
 			case <-n.ctx.Done():
 				return
 			case <-ticker.C:
-				fetchAndRender()
+				fetchAndRender(nil)
 			}
 		}
 	}()
