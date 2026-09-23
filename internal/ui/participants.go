@@ -123,6 +123,18 @@ func participantsPage(n nav, roomName string, initial []lk.Participant) tview.Pr
 			return nil
 		}
 
+		if event.Rune() == 't' {
+			row, _ := table.GetSelection()
+			if row > 0 && row <= len(state.sorted) {
+				p := state.sorted[row-1]
+
+				n.pages.RemovePage("tracks")
+				n.pages.AddPage("tracks", tracksPage(n, p.Identity, p.Tracks), true, true)
+			}
+
+			return nil
+		}
+
 		if !state.handleKey(event.Rune()) {
 			return event
 		}
@@ -161,6 +173,7 @@ func participantsPage(n nav, roomName string, initial []lk.Participant) tview.Pr
 		{"Esc", "back"}, {"m", "metadata"},
 		{"a", "attributes"},
 		{"p", "permissions"},
+		{"t", "tracks"},
 		{"Shift+letter", "sort"},
 	}
 
