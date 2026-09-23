@@ -39,8 +39,11 @@ Contexts are read-only by default. Actions that mutate server state (delete
 room, kick participant, mute/unmute a track, edit participant permissions,
 create a room) are refused with a status-bar message unless `write: true` is
 set for that context. A `[WRITE]` tag next to the context name flags when
-it's enabled. Generating an access token (`T` on the participants view) is
-unaffected, since it's a local JWT signature and never mutates the server.
+it's enabled. Generating an access token (`T` on the rooms/participants
+views, or the `:token` command) is unaffected, since it's a local JWT
+signature and never mutates the server. The token form covers both
+per-room join/publish grants and project-wide ones (RoomCreate, RoomList,
+RoomRecord, IngressAdmin).
 
 ## Usage
 

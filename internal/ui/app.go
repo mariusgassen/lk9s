@@ -140,6 +140,8 @@ func Run(dial func(config.Context) RoomLister, contexts []config.Context, curren
 				pages.SwitchToPage("rooms")
 			case "create-room":
 				pages.AddPage("create-room", roomCreatePage(active), true, true)
+			case "token":
+				pages.AddPage("token-form", tokenFormPage(active, "", ""), true, true)
 			case "quit":
 				app.Stop()
 			}

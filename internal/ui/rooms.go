@@ -151,6 +151,17 @@ func roomsInputCapture(
 			return event
 		}
 
+		if event.Rune() == 'T' {
+			if row > 0 && row <= len(state.sorted) {
+				roomName := state.sorted[row-1].Name
+
+				n.pages.RemovePage("token-form")
+				n.pages.AddPage("token-form", tokenFormPage(n, "", roomName), true, true)
+			}
+
+			return nil
+		}
+
 		if event.Rune() == 's' {
 			go func() {
 				entries, err := n.client.ListSIP(n.ctx)
@@ -254,8 +265,8 @@ func roomsPage(n nav) tview.Primitive {
 
 	keys := [][2]string{
 		{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"i", "room info"},
-		{"g", "agents"}, {"s", "sip"}, {"Ctrl+D", "delete"}, {"Ctrl+E", "error detail"}, {"Shift+letter", "sort"},
-		{"/", "filter"}, {":", "command"},
+		{"g", "agents"}, {"s", "sip"}, {"T", "token"}, {"Ctrl+D", "delete"}, {"Ctrl+E", "error detail"},
+		{"Shift+letter", "sort"}, {"/", "filter"}, {":", "command"},
 	}
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).
