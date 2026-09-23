@@ -328,14 +328,50 @@ func parseTrackSources(names []string) []livekit.TrackSource {
 	return out
 }
 
-// CreateToken mints a signed access token granting room-join for identity
-// in room, valid for ttl. This is a local signing operation (no LiveKit API
+// TokenGrant is the subset of auth.VideoGrant exposed by the "generate
+// token" UI action. RoomJoin and RoomAdmin are scoped to Room (the token
+// mints room-join/publish permissions, or admin rights, for that one
+// room); RoomCreate, RoomList, RoomRecord and IngressAdmin are project-wide
+// and ignore Room entirely.
+type TokenGrant struct {
+	RoomJoin             bool
+	CanPublish           bool
+	CanSubscribe         bool
+	CanPublishData       bool
+	CanUpdateOwnMetadata bool
+	Hidden               bool
+	Recorder             bool
+	RoomAdmin            bool
+	RoomCreate           bool
+	RoomList             bool
+	RoomRecord           bool
+	IngressAdmin         bool
+}
+
+// CreateToken mints a signed access token for identity, valid for ttl, with
+// the given grant scoped to room (room is only meaningful when
+// grant.RoomJoin or grant.RoomAdmin is set). This is a local signing
+// operation using the context's configured API key/secret (no LiveKit API
 // call), so it's available regardless of the context's write setting.
-func (c *Client) CreateToken(identity, room string, ttl time.Duration) (string, error) {
+func (c *Client) CreateToken(identity, room string, ttl time.Duration, grant TokenGrant) (string, error) {
 	at := c.rooms.CreateToken()
 	at.SetIdentity(identity).
 		SetValidFor(ttl).
-		SetVideoGrant(&auth.VideoGrant{RoomJoin: true, Room: room})
+		SetVideoGrant(&auth.VideoGrant{
+			Room:                 room,
+			RoomJoin:             grant.RoomJoin,
+			RoomAdmin:            grant.RoomAdmin,
+			RoomCreate:           grant.RoomCreate,
+			RoomList:             grant.RoomList,
+			RoomRecord:           grant.RoomRecord,
+			IngressAdmin:         grant.IngressAdmin,
+			CanPublish:           &grant.CanPublish,
+			CanSubscribe:         &grant.CanSubscribe,
+			CanPublishData:       &grant.CanPublishData,
+			CanUpdateOwnMetadata: &grant.CanUpdateOwnMetadata,
+			Hidden:               grant.Hidden,
+			Recorder:             grant.Recorder,
+		})
 
 	token, err := at.ToJWT()
 	if err != nil {

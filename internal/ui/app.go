@@ -30,7 +30,7 @@ type RoomLister interface {
 	RemoveParticipant(ctx context.Context, room, identity string) error
 	SetTrackMuted(ctx context.Context, room, identity, trackSID string, muted bool) error
 	UpdatePermission(ctx context.Context, room, identity string, perm lk.Permission) error
-	CreateToken(identity, room string, ttl time.Duration) (string, error)
+	CreateToken(identity, room string, ttl time.Duration, grant lk.TokenGrant) (string, error)
 }
 
 type nav struct {
@@ -140,6 +140,8 @@ func Run(dial func(config.Context) RoomLister, contexts []config.Context, curren
 				pages.SwitchToPage("rooms")
 			case "create-room":
 				pages.AddPage("create-room", roomCreatePage(active), true, true)
+			case "token":
+				pages.AddPage("token-form", tokenFormPage(active, "", ""), true, true)
 			case "quit":
 				app.Stop()
 			}
