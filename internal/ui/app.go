@@ -19,6 +19,8 @@ type roomLister interface {
 	ListRooms(ctx context.Context) ([]lk.Room, error)
 	ListParticipants(ctx context.Context, room string) ([]lk.Participant, error)
 	ListEgresses(ctx context.Context, room string) ([]lk.Egress, error)
+	ListAgentDispatches(ctx context.Context, room string) ([]lk.AgentDispatch, error)
+	ListSIP(ctx context.Context) ([]lk.SIPEntry, error)
 	DeleteRoom(ctx context.Context, room string) error
 }
 

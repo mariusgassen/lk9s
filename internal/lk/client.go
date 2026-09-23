@@ -12,11 +12,22 @@ import (
 )
 
 type Room struct {
-	Name            string
-	SID             string
-	NumParticipants uint32
-	CreationTime    int64 // Unix seconds
-	Metadata        string
+	Name             string
+	SID              string
+	NumParticipants  uint32
+	NumPublishers    uint32
+	CreationTime     int64 // Unix seconds
+	Metadata         string
+	ActiveRecording  bool
+	MaxParticipants  uint32
+	EmptyTimeout     uint32 // seconds
+	DepartureTimeout uint32 // seconds
+	EnabledCodecs    []Codec
+}
+
+type Codec struct {
+	MimeType string
+	FmtpLine string
 }
 
 type TrackState uint8
@@ -118,9 +129,11 @@ type Egress struct {
 }
 
 type Client struct {
-	rooms    *lksdk.RoomServiceClient
-	egresses *lksdk.EgressClient
-	logger   *slog.Logger
+	rooms         *lksdk.RoomServiceClient
+	egresses      *lksdk.EgressClient
+	sip           *lksdk.SIPClient
+	agentDispatch *lksdk.AgentDispatchClient
+	logger        *slog.Logger
 }
 
 // NewClient creates a LiveKit API client. logger receives debug-level
@@ -133,9 +146,11 @@ func NewClient(url, apiKey, apiSecret string, logger *slog.Logger) *Client {
 	}
 
 	return &Client{
-		rooms:    lksdk.NewRoomServiceClient(url, apiKey, apiSecret),
-		egresses: lksdk.NewEgressClient(url, apiKey, apiSecret),
-		logger:   logger,
+		rooms:         lksdk.NewRoomServiceClient(url, apiKey, apiSecret),
+		egresses:      lksdk.NewEgressClient(url, apiKey, apiSecret),
+		sip:           lksdk.NewSIPClient(url, apiKey, apiSecret),
+		agentDispatch: lksdk.NewAgentDispatchServiceClient(url, apiKey, apiSecret),
+		logger:        logger,
 	}
 }
 
@@ -150,11 +165,17 @@ func (c *Client) ListRooms(ctx context.Context) ([]Room, error) {
 	rooms := make([]Room, len(res.GetRooms()))
 	for i, r := range res.GetRooms() {
 		rooms[i] = Room{
-			Name:            r.GetName(),
-			SID:             r.GetSid(),
-			NumParticipants: r.GetNumParticipants(),
-			CreationTime:    r.GetCreationTime(),
-			Metadata:        r.GetMetadata(),
+			Name:             r.GetName(),
+			SID:              r.GetSid(),
+			NumParticipants:  r.GetNumParticipants(),
+			NumPublishers:    r.GetNumPublishers(),
+			CreationTime:     r.GetCreationTime(),
+			Metadata:         r.GetMetadata(),
+			ActiveRecording:  r.GetActiveRecording(),
+			MaxParticipants:  r.GetMaxParticipants(),
+			EmptyTimeout:     r.GetEmptyTimeout(),
+			DepartureTimeout: r.GetDepartureTimeout(),
+			EnabledCodecs:    roomCodecs(r.GetEnabledCodecs()),
 		}
 
 		c.logger.Debug("list rooms: got room", "name", rooms[i].Name, "sid", rooms[i].SID)
@@ -242,6 +263,15 @@ func trackState(tracks []*livekit.TrackInfo, source livekit.TrackSource) TrackSt
 	}
 
 	return TrackAbsent
+}
+
+func roomCodecs(cc []*livekit.Codec) []Codec {
+	out := make([]Codec, len(cc))
+	for i, c := range cc {
+		out[i] = Codec{MimeType: c.GetMime(), FmtpLine: c.GetFmtpLine()}
+	}
+
+	return out
 }
 
 func trackInfos(tracks []*livekit.TrackInfo) []Track {
@@ -353,4 +383,113 @@ func egressType(e *livekit.EgressInfo) string {
 	default:
 		return "UNKNOWN"
 	}
+}
+
+type AgentDispatch struct {
+	ID        string
+	AgentName string
+	Room      string
+	Metadata  string
+	CreatedAt int64 // Unix seconds
+	DeletedAt int64 // Unix seconds
+	JobStatus string
+	JobError  string
+}
+
+func (c *Client) ListAgentDispatches(ctx context.Context, room string) ([]AgentDispatch, error) {
+	res, err := c.agentDispatch.ListDispatch(ctx, &livekit.ListAgentDispatchRequest{Room: room})
+	if err != nil {
+		return nil, fmt.Errorf("list agent dispatches: %w", err)
+	}
+
+	dd := make([]AgentDispatch, len(res.GetAgentDispatches()))
+	for i, d := range res.GetAgentDispatches() {
+		dd[i] = AgentDispatch{
+			ID:        d.GetId(),
+			AgentName: d.GetAgentName(),
+			Room:      d.GetRoom(),
+			Metadata:  d.GetMetadata(),
+			CreatedAt: d.GetState().GetCreatedAt(),
+			DeletedAt: d.GetState().GetDeletedAt(),
+		}
+
+		if jobs := d.GetState().GetJobs(); len(jobs) > 0 {
+			dd[i].JobStatus = jobs[0].GetState().GetStatus().String()
+			dd[i].JobError = jobs[0].GetState().GetError()
+		}
+	}
+
+	return dd, nil
+}
+
+// SIPKind identifies which kind of SIP configuration entry a SIPEntry
+// represents (inbound trunk, outbound trunk, or dispatch rule); the three
+// share few fields, so they're normalized into one listing.
+type SIPKind string
+
+const (
+	SIPInboundTrunk  SIPKind = "INBOUND"
+	SIPOutboundTrunk SIPKind = "OUTBOUND"
+	SIPDispatchRule  SIPKind = "DISPATCH"
+)
+
+type SIPEntry struct {
+	Kind     SIPKind
+	ID       string
+	Name     string
+	Numbers  []string
+	Address  string // outbound trunks only
+	Metadata string
+}
+
+func (c *Client) ListSIP(ctx context.Context) ([]SIPEntry, error) {
+	inbound, err := c.sip.ListSIPInboundTrunk(ctx, &livekit.ListSIPInboundTrunkRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("list sip inbound trunks: %w", err)
+	}
+
+	outbound, err := c.sip.ListSIPOutboundTrunk(ctx, &livekit.ListSIPOutboundTrunkRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("list sip outbound trunks: %w", err)
+	}
+
+	rules, err := c.sip.ListSIPDispatchRule(ctx, &livekit.ListSIPDispatchRuleRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("list sip dispatch rules: %w", err)
+	}
+
+	entries := make([]SIPEntry, 0, len(inbound.GetItems())+len(outbound.GetItems())+len(rules.GetItems()))
+
+	for _, t := range inbound.GetItems() {
+		entries = append(entries, SIPEntry{
+			Kind:     SIPInboundTrunk,
+			ID:       t.GetSipTrunkId(),
+			Name:     t.GetName(),
+			Numbers:  t.GetNumbers(),
+			Metadata: t.GetMetadata(),
+		})
+	}
+
+	for _, t := range outbound.GetItems() {
+		entries = append(entries, SIPEntry{
+			Kind:     SIPOutboundTrunk,
+			ID:       t.GetSipTrunkId(),
+			Name:     t.GetName(),
+			Numbers:  t.GetNumbers(),
+			Address:  t.GetAddress(),
+			Metadata: t.GetMetadata(),
+		})
+	}
+
+	for _, r := range rules.GetItems() {
+		entries = append(entries, SIPEntry{
+			Kind:     SIPDispatchRule,
+			ID:       r.GetSipDispatchRuleId(),
+			Name:     r.GetName(),
+			Numbers:  r.GetNumbers(),
+			Metadata: r.GetMetadata(),
+		})
+	}
+
+	return entries, nil
 }
