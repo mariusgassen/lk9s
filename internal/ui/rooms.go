@@ -245,6 +245,7 @@ func roomsPage(n nav) tview.Primitive {
 	keys := [][2]string{
 		{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"i", "room info"},
 		{"g", "agents"}, {"s", "sip"}, {"Ctrl+D", "delete"}, {"Ctrl+E", "error detail"}, {"Shift+letter", "sort"},
+		{":", "command"},
 	}
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).

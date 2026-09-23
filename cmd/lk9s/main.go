@@ -44,7 +44,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := ui.Run(lk.NewClient(ctx.URL, ctx.APIKey, ctx.APISecret, logger), ctx.Name, buildVersion()); err != nil {
+	dial := func(c config.Context) ui.RoomLister {
+		return lk.NewClient(c.URL, c.APIKey, c.APISecret, logger)
+	}
+
+	if err := ui.Run(dial, cfg.Contexts, ctx, buildVersion()); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

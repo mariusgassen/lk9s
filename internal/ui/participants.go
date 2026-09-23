@@ -175,6 +175,7 @@ func participantsPage(n nav, roomName string, initial []lk.Participant) tview.Pr
 		{"p", "permissions"},
 		{"t", "tracks"},
 		{"Shift+letter", "sort"},
+		{":", "command"},
 	}
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).
