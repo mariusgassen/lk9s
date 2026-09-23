@@ -30,7 +30,7 @@ type RoomLister interface {
 	RemoveParticipant(ctx context.Context, room, identity string) error
 	SetTrackMuted(ctx context.Context, room, identity, trackSID string, muted bool) error
 	UpdatePermission(ctx context.Context, room, identity string, perm lk.Permission) error
-	CreateToken(identity, room string, ttl time.Duration) (string, error)
+	CreateToken(identity, room string, ttl time.Duration, grant lk.TokenGrant) (string, error)
 }
 
 type nav struct {

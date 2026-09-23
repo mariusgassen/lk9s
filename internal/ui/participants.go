@@ -163,8 +163,8 @@ func participantsPage(n nav, roomName string, initial []lk.Participant) tview.Pr
 			if row > 0 && row <= len(state.sorted) {
 				identity := state.sorted[row-1].Identity
 
-				n.pages.RemovePage("token")
-				n.pages.AddPage("token", tokenPage(n, identity, roomName), true, true)
+				n.pages.RemovePage("token-form")
+				n.pages.AddPage("token-form", tokenFormPage(n, identity, roomName), true, true)
 			}
 
 			return nil
