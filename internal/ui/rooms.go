@@ -47,6 +47,15 @@ func roomsInputCapture(
 	return func(event *tcell.EventKey) *tcell.EventKey {
 		row, _ := table.GetSelection()
 
+		if event.Rune() == '/' {
+			n.pages.AddPage("filter", filterBarPage(n, state.filterText, func(f string) {
+				state.setFilter(f)
+				state.render(table)
+			}), true, true)
+
+			return nil
+		}
+
 		if event.Key() == tcell.KeyCtrlE {
 			if text := status.GetText(true); text != "" {
 				n.pages.RemovePage("status-detail")
@@ -57,7 +66,7 @@ func roomsInputCapture(
 		}
 
 		if event.Key() == tcell.KeyCtrlD {
-			if row > 0 && row <= len(state.sorted) {
+			if row > 0 && row <= len(state.sorted) && requireWrite(n, status) {
 				roomName := state.sorted[row-1].Name
 
 				n.pages.RemovePage("confirm-delete")
@@ -173,7 +182,8 @@ func roomsInputCapture(
 
 func roomsPage(n nav) tview.Primitive {
 	version := tview.NewTextView().SetText(fmt.Sprintf(" %-10s %s", "LK9s Rev:", n.version))
-	header := tview.NewTextView().SetText(fmt.Sprintf(" %-10s %s", "ctx:", n.contextName))
+	header := tview.NewTextView().SetDynamicColors(true).
+		SetText(fmt.Sprintf(" %-10s %s%s", "ctx:", n.contextName, writeTag(n)))
 	table := newTable(" Rooms ")
 	status := newStatusBar()
 	state := &tableState[lk.Room]{cols: roomCols, sortAsc: true}
@@ -197,7 +207,7 @@ func roomsPage(n nav) tview.Primitive {
 				return
 			}
 
-			updateStatus(status, err)
+			updateListStatus(status, err, len(fetched))
 		})
 	}
 
@@ -245,7 +255,7 @@ func roomsPage(n nav) tview.Primitive {
 	keys := [][2]string{
 		{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"i", "room info"},
 		{"g", "agents"}, {"s", "sip"}, {"Ctrl+D", "delete"}, {"Ctrl+E", "error detail"}, {"Shift+letter", "sort"},
-		{":", "command"},
+		{"/", "filter"}, {":", "command"},
 	}
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).

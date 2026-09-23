@@ -27,11 +27,20 @@ contexts:
     url: https://dev.livekit.example.com
     api-key: devkey
     api-secret: devsecret
+    write: true # allow destructive/mutating actions against this context
   - name: prod
     url: https://prod.livekit.example.com
     api-key: prodkey
     api-secret: prodsecret
+    # write defaults to false: prod stays read-only unless set explicitly
 ```
+
+Contexts are read-only by default. Actions that mutate server state (delete
+room, kick participant, mute/unmute a track, edit participant permissions,
+create a room) are refused with a status-bar message unless `write: true` is
+set for that context. A `[WRITE]` tag next to the context name flags when
+it's enabled. Generating an access token (`T` on the participants view) is
+unaffected, since it's a local JWT signature and never mutates the server.
 
 ## Usage
 
@@ -42,6 +51,6 @@ lk9s -context prod     # connect directly
 
 ## Planned features
 
-- [ ] Search/filter rows by typing
-- [ ] Status bar with counts and last-refresh time
-- [ ] Switch context without restarting (`c` to reopen picker)
+- [x] Search/filter rows by typing (`/` on rooms, participants and tracks)
+- [x] Status bar with counts and last-refresh time
+- [x] Switch context without restarting (`:projects` command)
