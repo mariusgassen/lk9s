@@ -106,6 +106,61 @@ func roomsInputCapture(
 			return nil
 		}
 
+		if event.Rune() == 'i' {
+			if row > 0 && row <= len(state.sorted) {
+				r := state.sorted[row-1]
+
+				n.pages.RemovePage("roominfo")
+				n.pages.AddPage("roominfo", roomInfoPage(n, r), true, true)
+			}
+
+			return nil
+		}
+
+		if event.Rune() == 'g' {
+			if row > 0 && row <= len(state.sorted) {
+				roomName := state.sorted[row-1].Name
+
+				go func() {
+					dd, err := n.client.ListAgentDispatches(n.ctx, roomName)
+
+					n.app.QueueUpdateDraw(func() {
+						updateStatus(status, err)
+
+						if err != nil {
+							return
+						}
+
+						n.pages.RemovePage("agents")
+						n.pages.AddPage("agents", agentsPage(n, roomName, dd), true, true)
+					})
+				}()
+
+				return nil
+			}
+
+			return event
+		}
+
+		if event.Rune() == 's' {
+			go func() {
+				entries, err := n.client.ListSIP(n.ctx)
+
+				n.app.QueueUpdateDraw(func() {
+					updateStatus(status, err)
+
+					if err != nil {
+						return
+					}
+
+					n.pages.RemovePage("sip")
+					n.pages.AddPage("sip", sipPage(n, entries), true, true)
+				})
+			}()
+
+			return nil
+		}
+
 		if !state.handleKey(event.Rune()) {
 			return event
 		}
@@ -187,7 +242,10 @@ func roomsPage(n nav) tview.Primitive {
 		}
 	}()
 
-	keys := [][2]string{{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"Ctrl+D", "delete"}, {"Ctrl+E", "error detail"}, {"Shift+letter", "sort"}}
+	keys := [][2]string{
+		{"Enter", "participants"}, {"e", "egresses"}, {"m", "metadata"}, {"i", "room info"},
+		{"g", "agents"}, {"s", "sip"}, {"Ctrl+D", "delete"}, {"Ctrl+E", "error detail"}, {"Shift+letter", "sort"},
+	}
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(version, 1, 0, false).
