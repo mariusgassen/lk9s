@@ -9,7 +9,7 @@ import (
 
 // commands are the recognized ":" command names, offered as autocomplete
 // entries in the order shown.
-var commands = []string{"projects", "rooms", "quit"}
+var commands = []string{"create-room", "projects", "rooms", "quit"}
 
 // commandBarPage shows a k9s-style ":" command line with autocompletion. It
 // closes itself on Esc or an empty submit; onExec is called with the

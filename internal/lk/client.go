@@ -6,7 +6,9 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"time"
 
+	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 )
@@ -184,6 +186,33 @@ func (c *Client) ListRooms(ctx context.Context) ([]Room, error) {
 	return rooms, nil
 }
 
+func (c *Client) CreateRoom(ctx context.Context, name string, emptyTimeout, maxParticipants uint32) (Room, error) {
+	res, err := c.rooms.CreateRoom(ctx, &livekit.CreateRoomRequest{
+		Name:            name,
+		EmptyTimeout:    emptyTimeout,
+		MaxParticipants: maxParticipants,
+	})
+	if err != nil {
+		c.logger.Error("create room", "name", name, "error", err)
+
+		return Room{}, fmt.Errorf("create room: %w", err)
+	}
+
+	return Room{
+		Name:             res.GetName(),
+		SID:              res.GetSid(),
+		NumParticipants:  res.GetNumParticipants(),
+		NumPublishers:    res.GetNumPublishers(),
+		CreationTime:     res.GetCreationTime(),
+		Metadata:         res.GetMetadata(),
+		ActiveRecording:  res.GetActiveRecording(),
+		MaxParticipants:  res.GetMaxParticipants(),
+		EmptyTimeout:     res.GetEmptyTimeout(),
+		DepartureTimeout: res.GetDepartureTimeout(),
+		EnabledCodecs:    roomCodecs(res.GetEnabledCodecs()),
+	}, nil
+}
+
 func (c *Client) DeleteRoom(ctx context.Context, room string) error {
 	c.logger.Debug("delete room: request", "name", room)
 
@@ -225,6 +254,95 @@ func (c *Client) ListParticipants(ctx context.Context, room string) ([]Participa
 	}
 
 	return pp, nil
+}
+
+func (c *Client) RemoveParticipant(ctx context.Context, room, identity string) error {
+	if _, err := c.rooms.RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{Room: room, Identity: identity}); err != nil {
+		c.logger.Error("remove participant", "room", room, "identity", identity, "error", err)
+
+		return fmt.Errorf("remove participant: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Client) SetTrackMuted(ctx context.Context, room, identity, trackSID string, muted bool) error {
+	if _, err := c.rooms.MutePublishedTrack(ctx, &livekit.MuteRoomTrackRequest{
+		Room:     room,
+		Identity: identity,
+		TrackSid: trackSID,
+		Muted:    muted,
+	}); err != nil {
+		c.logger.Error("mute track", "room", room, "identity", identity, "track", trackSID, "error", err)
+
+		return fmt.Errorf("mute track: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Client) UpdatePermission(ctx context.Context, room, identity string, perm Permission) error {
+	//nolint:staticcheck
+	req := &livekit.UpdateParticipantRequest{
+		Room:     room,
+		Identity: identity,
+		Permission: &livekit.ParticipantPermission{
+			CanSubscribe:          perm.CanSubscribe,
+			CanPublish:            perm.CanPublish,
+			CanPublishData:        perm.CanPublishData,
+			CanPublishSources:     parseTrackSources(perm.CanPublishSources),
+			Hidden:                perm.Hidden,
+			Recorder:              perm.Recorder,
+			CanUpdateMetadata:     perm.CanUpdateMetadata,
+			CanSubscribeMetrics:   perm.CanSubscribeMetrics,
+			CanManageAgentSession: perm.CanManageAgentSession,
+		},
+	}
+
+	if _, err := c.rooms.UpdateParticipant(ctx, req); err != nil {
+		c.logger.Error("update permission", "room", room, "identity", identity, "error", err)
+
+		return fmt.Errorf("update permission: %w", err)
+	}
+
+	return nil
+}
+
+// parseTrackSources converts the display names produced by
+// participantPermission back into the enum values the API expects,
+// preserving the participant's existing publish-source restriction across
+// an otherwise unrelated permission edit.
+func parseTrackSources(names []string) []livekit.TrackSource {
+	if len(names) == 0 {
+		return nil
+	}
+
+	out := make([]livekit.TrackSource, 0, len(names))
+
+	for _, name := range names {
+		if v, ok := livekit.TrackSource_value[name]; ok {
+			out = append(out, livekit.TrackSource(v))
+		}
+	}
+
+	return out
+}
+
+// CreateToken mints a signed access token granting room-join for identity
+// in room, valid for ttl. This is a local signing operation (no LiveKit API
+// call), so it's available regardless of the context's write setting.
+func (c *Client) CreateToken(identity, room string, ttl time.Duration) (string, error) {
+	at := c.rooms.CreateToken()
+	at.SetIdentity(identity).
+		SetValidFor(ttl).
+		SetVideoGrant(&auth.VideoGrant{RoomJoin: true, Room: room})
+
+	token, err := at.ToJWT()
+	if err != nil {
+		return "", fmt.Errorf("create token: %w", err)
+	}
+
+	return token, nil
 }
 
 func participantPermission(perm *livekit.ParticipantPermission) Permission {
