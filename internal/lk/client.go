@@ -63,6 +63,50 @@ type Participant struct {
 	Camera      TrackState
 	Screen      TrackState
 	ScreenAudio TrackState
+	Tracks      []Track
+}
+
+type VideoLayer struct {
+	Quality      string
+	Width        uint32
+	Height       uint32
+	Bitrate      uint32 // bps
+	SSRC         uint32
+	RepairSSRC   uint32
+	SpatialLayer int32
+	RID          string
+}
+
+type TrackCodec struct {
+	MimeType  string
+	MID       string
+	CID       string
+	SDPCID    string
+	LayerMode string
+	Layers    []VideoLayer
+}
+
+type Track struct {
+	SID               string
+	Name              string
+	Type              string
+	Source            string
+	MimeType          string
+	MID               string
+	Stream            string
+	Muted             bool
+	Width             uint32
+	Height            uint32
+	Simulcast         bool
+	DisableDTX        bool
+	Stereo            bool
+	DisableRED        bool
+	Encryption        string
+	BackupCodecPolicy string
+	AudioFeatures     []string
+	Version           int64 // Unix microseconds
+	Layers            []VideoLayer
+	Codecs            []TrackCodec
 }
 
 type Egress struct {
@@ -155,6 +199,7 @@ func (c *Client) ListParticipants(ctx context.Context, room string) ([]Participa
 			Camera:      trackState(tracks, livekit.TrackSource_CAMERA),
 			Screen:      trackState(tracks, livekit.TrackSource_SCREEN_SHARE),
 			ScreenAudio: trackState(tracks, livekit.TrackSource_SCREEN_SHARE_AUDIO),
+			Tracks:      trackInfos(tracks),
 		}
 	}
 
@@ -197,6 +242,73 @@ func trackState(tracks []*livekit.TrackInfo, source livekit.TrackSource) TrackSt
 	}
 
 	return TrackAbsent
+}
+
+func trackInfos(tracks []*livekit.TrackInfo) []Track {
+	out := make([]Track, len(tracks))
+
+	for i, t := range tracks {
+		features := make([]string, len(t.GetAudioFeatures()))
+		for j, f := range t.GetAudioFeatures() {
+			features[j] = f.String()
+		}
+
+		codecs := make([]TrackCodec, len(t.GetCodecs()))
+		for j, c := range t.GetCodecs() {
+			codecs[j] = TrackCodec{
+				MimeType:  c.GetMimeType(),
+				MID:       c.GetMid(),
+				CID:       c.GetCid(),
+				SDPCID:    c.GetSdpCid(),
+				LayerMode: c.GetVideoLayerMode().String(),
+				Layers:    videoLayers(c.GetLayers()),
+			}
+		}
+
+		//nolint:staticcheck
+		out[i] = Track{
+			SID:               t.GetSid(),
+			Name:              t.GetName(),
+			Type:              t.GetType().String(),
+			Source:            t.GetSource().String(),
+			MimeType:          t.GetMimeType(),
+			MID:               t.GetMid(),
+			Stream:            t.GetStream(),
+			Muted:             t.GetMuted(),
+			Width:             t.GetWidth(),
+			Height:            t.GetHeight(),
+			Simulcast:         t.GetSimulcast(),
+			DisableDTX:        t.GetDisableDtx(),
+			Stereo:            t.GetStereo(),
+			DisableRED:        t.GetDisableRed(),
+			Encryption:        t.GetEncryption().String(),
+			BackupCodecPolicy: t.GetBackupCodecPolicy().String(),
+			AudioFeatures:     features,
+			Version:           t.GetVersion().GetUnixMicro(),
+			Layers:            videoLayers(t.GetLayers()),
+			Codecs:            codecs,
+		}
+	}
+
+	return out
+}
+
+func videoLayers(layers []*livekit.VideoLayer) []VideoLayer {
+	out := make([]VideoLayer, len(layers))
+	for i, l := range layers {
+		out[i] = VideoLayer{
+			Quality:      l.GetQuality().String(),
+			Width:        l.GetWidth(),
+			Height:       l.GetHeight(),
+			Bitrate:      l.GetBitrate(),
+			SSRC:         l.GetSsrc(),
+			RepairSSRC:   l.GetRepairSsrc(),
+			SpatialLayer: l.GetSpatialLayer(),
+			RID:          l.GetRid(),
+		}
+	}
+
+	return out
 }
 
 func (c *Client) ListEgresses(ctx context.Context, room string) ([]Egress, error) {
