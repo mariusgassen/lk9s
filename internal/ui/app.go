@@ -118,6 +118,45 @@ func Run(dial func(config.Context) RoomLister, contexts []config.Context, curren
 
 	showRooms(n)
 
+	// cmdBar is a single persistent widget, docked at the top of the screen
+	// for the app's entire lifetime (k9s style), rather than a page overlay
+	// recreated on every ":" press.
+	var cmdBar *tview.InputField
+
+	blur := func() { app.SetFocus(pages) }
+
+	cmdBar = newCommandBar(blur, func(cmd string) {
+		switch cmd {
+		case "projects", "ctx":
+			prev, _ := pages.GetFrontPage()
+
+			pages.AddPage("contexts", contextsPage(n, contexts, switchContext, func() {
+				pages.SwitchToPage(prev)
+			}), true, true)
+			pages.SwitchToPage("contexts")
+		case "rooms":
+			pages.SwitchToPage("rooms")
+		case "create-room":
+			pages.AddPage("create-room", roomCreatePage(active), true, true)
+		case "token":
+			pages.AddPage("token-form", tokenFormPage(active, "", ""), true, true)
+		case "sip":
+			// Errors aren't surfaced here (there's no status bar at this
+			// level); sipPage's own refresh ticker will report a fetch
+			// failure via its status bar within refreshInterval.
+			go func() {
+				entries, _ := active.client.ListSIP(active.ctx)
+
+				app.QueueUpdateDraw(func() {
+					pages.RemovePage("sip")
+					pages.AddPage("sip", sipPage(active, entries), true, true)
+				})
+			}()
+		case "quit", "q":
+			app.Stop()
+		}
+	})
+
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Rune() != ':' {
 			return event
@@ -127,30 +166,16 @@ func Run(dial func(config.Context) RoomLister, contexts []config.Context, curren
 			return event
 		}
 
-		pages.AddPage("command", commandBarPage(n, func(cmd string) {
-			switch cmd {
-			case "projects":
-				prev, _ := pages.GetFrontPage()
-
-				pages.AddPage("contexts", contextsPage(n, contexts, switchContext, func() {
-					pages.SwitchToPage(prev)
-				}), true, true)
-				pages.SwitchToPage("contexts")
-			case "rooms":
-				pages.SwitchToPage("rooms")
-			case "create-room":
-				pages.AddPage("create-room", roomCreatePage(active), true, true)
-			case "token":
-				pages.AddPage("token-form", tokenFormPage(active, "", ""), true, true)
-			case "quit":
-				app.Stop()
-			}
-		}), true, true)
+		app.SetFocus(cmdBar)
 
 		return nil
 	})
 
-	return app.SetRoot(pages, true).Run()
+	root := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(cmdBar, 1, 0, false).
+		AddItem(pages, 0, 1, true)
+
+	return app.SetRoot(root, true).Run()
 }
 
 func newTable(title string) *tview.Table {

@@ -9,14 +9,14 @@ import (
 
 // commands are the recognized ":" command names, offered as autocomplete
 // entries in the order shown.
-var commands = []string{"create-room", "projects", "rooms", "token", "quit"}
+var commands = []string{"create-room", "projects", "ctx", "rooms", "sip", "token", "quit"}
 
-// commandBarPage shows a k9s-style ":" command line with autocompletion. It
-// closes itself on Esc or an empty submit; onExec is called with the
-// trimmed, lower-cased command once the user submits non-empty text.
-func commandBarPage(n nav, onExec func(cmd string)) tview.Primitive {
-	const pageName = "command"
-
+// newCommandBar builds the k9s-style ":" command line that stays docked at
+// the top of the screen for the lifetime of the app (see Run). Pressing ":"
+// anywhere focuses it; blur is called to return focus to the underlying
+// view, on both cancel and submit. onExec is called with the trimmed,
+// lower-cased command once the user submits non-empty text.
+func newCommandBar(blur func(), onExec func(cmd string)) *tview.InputField {
 	input := tview.NewInputField().SetLabel(" : ")
 
 	input.SetAutocompleteFunc(func(currentText string) []string {
@@ -37,7 +37,8 @@ func commandBarPage(n nav, onExec func(cmd string)) tview.Primitive {
 	})
 
 	submit := func(text string) {
-		n.pages.RemovePage(pageName)
+		input.SetText("")
+		blur()
 
 		text = strings.ToLower(strings.TrimSpace(text))
 		if text == "" {
@@ -66,17 +67,12 @@ func commandBarPage(n nav, onExec func(cmd string)) tview.Primitive {
 	input.SetDoneFunc(func(key tcell.Key) {
 		switch key {
 		case tcell.KeyEscape:
-			n.pages.RemovePage(pageName)
+			input.SetText("")
+			blur()
 		case tcell.KeyEnter:
 			submit(input.GetText())
 		}
 	})
 
-	body := tview.NewFlex().SetDirection(tview.FlexRow).AddItem(input, 1, 0, true)
-	body.SetBorder(true)
-
-	return tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(nil, 0, 1, false).
-		AddItem(body, 3, 0, true).
-		AddItem(nil, 0, 1, false)
+	return input
 }

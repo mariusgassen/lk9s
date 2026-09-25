@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -34,6 +35,10 @@ func main() {
 
 	ctx, err := resolveContext(cfg, *contextName)
 	if err != nil {
+		if errors.Is(err, ui.ErrSelectionCancelled) {
+			os.Exit(0)
+		}
+
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
