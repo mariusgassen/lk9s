@@ -283,6 +283,7 @@ func (c *Client) SetTrackMuted(ctx context.Context, room, identity, trackSID str
 }
 
 func (c *Client) UpdatePermission(ctx context.Context, room, identity string, perm Permission) error {
+	//nolint:staticcheck // Recorder is deprecated but still needed
 	req := &livekit.UpdateParticipantRequest{
 		Room:     room,
 		Identity: identity,
