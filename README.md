@@ -2,6 +2,9 @@
 
 A k9s-style terminal UI for [LiveKit](https://livekit.io).
 
+> lk9s is an independent community project and is not affiliated with, endorsed by, or sponsored by the official
+> LiveKit project or LiveKit, Inc. LiveKit is a trademark of its respective owner.
+
 > This is a fork of [beelis/lk9s](https://github.com/beelis/lk9s) with its own releases. See
 > [Differences from upstream](#differences-from-upstream).
 
