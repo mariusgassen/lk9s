@@ -10,7 +10,11 @@ lk9s started as a fork of [beelis/lk9s](https://github.com/beelis/lk9s) and is r
 
 ## Installation
 
-Build from source:
+```bash
+go install github.com/mariusgassen/lk9s/cmd/lk9s@latest
+```
+
+Or build from source:
 
 ```bash
 git clone https://github.com/mariusgassen/lk9s.git
