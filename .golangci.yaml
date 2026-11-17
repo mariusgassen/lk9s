@@ -27,6 +27,7 @@ linters:
     #    - gochecksumtype
     #    - gocritic
     - godox
+    - gomodguard
     #    - gosec
     - gosmopolitan
     #    - govet
