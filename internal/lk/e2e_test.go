@@ -241,16 +241,21 @@ func TestEmptyListings(t *testing.T) {
 	c := newClient(t)
 	room := newRoom(t, c)
 
-	// A bare dev server has no Redis, so egress (and agent dispatch) are
-	// unavailable there; that is not a client bug.
-	if _, err := c.ListEgresses(t.Context(), room); err != nil && !strings.Contains(err.Error(), "redis required") {
+	if _, err := c.ListEgresses(t.Context(), room); err != nil && !needsRedis(err) {
 		t.Errorf("list egresses: %v", err)
 	}
 
-	if _, err := c.ListAgentDispatches(t.Context(), room); err != nil &&
-		!strings.Contains(err.Error(), "redis required") {
+	if _, err := c.ListAgentDispatches(t.Context(), room); err != nil && !needsRedis(err) {
 		t.Errorf("list agent dispatches: %v", err)
 	}
+}
+
+// needsRedis reports whether err is how a bare dev server (no Redis) rejects
+// egress and agent dispatch calls: v1.9 answers "redis required" or panics.
+func needsRedis(err error) bool {
+	msg := err.Error()
+
+	return strings.Contains(msg, "redis required") || strings.Contains(msg, "Internal service panic")
 }
 
 func TestInvalidCredentials(t *testing.T) {
